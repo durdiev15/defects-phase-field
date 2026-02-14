@@ -8,9 +8,11 @@ from solver.concentrations import concentration_bulk_core, compute_chemical_pote
 from solver.solve_phi import solve_poisson_2d
 from solver.plots import plot_grains, plot_fields, plot_fields_with_rho
 
-output_dir = "multi_order_bicrystal"
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
+import shutil 
+output_dir = "multi_order_bicrystal" 
+if os.path.exists(output_dir): 
+    shutil.rmtree(output_dir) 
+os.makedirs(output_dir)
 
 def debye_length(eps_r, T, c_dop_inf, kb = 1.3806e-23, eps0=8.854e-12, e_charge=1.6022e-19):
     l_D = np.sqrt((eps0 * eps_r * kb * T) / (2 * (e_charge**2) * c_dop_inf))
@@ -143,8 +145,10 @@ def run_bicrystal_multiorder():
     # In KKS, we often assume g0_bulk = 0 reference, and g0_core = delta_g.
     g0_vo_b, g0_dop_b = 0.0, 0.0
 
-    steps = 3000001
+    steps = 5000001
     for n in range(steps):
+        if n == 10000:
+            L_mobility = 0.0
         
         # 1. Interpolation Functions
         h, dh_deta = compute_h_and_derivative(eta)
@@ -197,7 +201,7 @@ def run_bicrystal_multiorder():
         
         eta = eta + dt * rhs
         
-        if n % 1000 == 0:
+        if n % 10000 == 0:
             # print(f"Step {n}, Max Phi: {np.max(phi):.4f}, Max Vo: {np.max(C_vo):.4e}")
             sig_dim, wid_dim, E_dens_dim, p0, p1 = compute_properties(eta, dx, omega, gamma, kappa)
             
@@ -214,8 +218,8 @@ def run_bicrystal_multiorder():
             # Energy Density [J/m^3]
             E_dens_phys = E_dens_dim * energy_scale
 
-            phi_phys_max = np.max(phi) * phi_scale
-            C_vo_phys_max = np.max(C_vo) / (length_scale**3)
+            phi_phys_max = (phi) * phi_scale
+            C_vo_phys_max = (C_vo) / (length_scale**3)
 
             print(f"Step {n}:")
             print(f"  Max Phi: {np.max(phi_phys_max):.4f} V, Min Phi: {np.min(phi_phys_max):.4f} V, Max Vo: {np.max(C_vo_phys_max):.4e} 1/m3 | Sigma (Calc): {sig_phys_val:.4f} J/m^2 | Width (Calc): {wid_phys_val*1e9:.4f} nm ")
