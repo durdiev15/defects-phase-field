@@ -6,10 +6,7 @@ import scipy.sparse.linalg as spla
 import h5py
 
 import shutil 
-output_dir = "multi_order_bicrystal_1d" 
-if os.path.exists(output_dir): 
-    shutil.rmtree(output_dir) 
-os.makedirs(output_dir)
+
 
 from scipy.optimize import curve_fit
 from scipy.integrate import solve_bvp
@@ -353,7 +350,8 @@ def plot_fields_1d(output_dir, n, x_nm, phi_phys, rho_phys, C_vo_phys, C_dop_phy
 # 5. MAIN SIMULATION LOOP
 # =============================================================================
 
-def run_bicrystal_1d():
+def run_bicrystal_1d(output_dir, delta_g_dop_eV, delta_g_vo_eV = -1.5, N_vo_c_phys=1.0e27, N_dop_c_phys=1.68e26,
+                                                            N_vo_b_phys = 5.1e28, N_dop_b_phys = 1.68e28, c_dop_bulk_phys = 7.0e25):
     # --- 1. Simulation Setup ---
     Lx = 80e-9 
     T = 1623.0 
@@ -374,16 +372,16 @@ def run_bicrystal_1d():
     eps_r = 56.0 
     F = 96485.0
     
-    delta_g_vo_eV = -1.5 
-    delta_g_dop_eV = -0.5 
+    delta_g_vo_eV = delta_g_vo_eV
+    delta_g_dop_eV = delta_g_dop_eV 
     z_vo = 2.0
     z_dop = -1.0
     
-    N_vo_b_phys = 5.1e28
-    N_dop_b_phys = 1.68e28
-    N_vo_c_phys = 5.0e26
-    N_dop_c_phys = 1.68e27
-    c_dop_bulk_phys = 7.0e25
+    N_vo_b_phys = N_vo_b_phys
+    N_dop_b_phys = N_dop_b_phys
+    N_vo_c_phys = N_vo_c_phys
+    N_dop_c_phys = N_dop_c_phys
+    c_dop_bulk_phys = c_dop_bulk_phys
     c_vo_bulk_phys = -(z_dop * c_dop_bulk_phys) / z_vo 
 
     # --- Scaling ---
@@ -431,7 +429,7 @@ def run_bicrystal_1d():
     nt = 10000
 
     #-------------------------------------------
-    h5_path = os.path.join(output_dir, "results_data.h5")
+    h5_path = os.path.join(output_dir, f"results_data_{delta_g_dop_eV}.h5")
     h5file = h5py.File(h5_path, "w")
     params = h5file.create_group("simulation_parameters")
     params["R"] = R
@@ -565,8 +563,53 @@ def run_bicrystal_1d():
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(f"{output_dir}/phi_comparison.png")
+    plt.savefig(f"{output_dir}/phi_comparison_{delta_g_dop_eV}.png")
     plt.close()
 
+    core_idx = Nx // 2
+    
+    phi_0 = phi_phys[core_idx]
+    c_vo_c = C_vo_phys[core_idx]
+    c_dop_c = C_dop_phys[core_idx]
+
+    print(f"Finished dg_dop = {delta_g_dop_eV:.2f} eV | Phi_0: {phi_0:.4f} V, Vo: {c_vo_c:.2e}, Dop: {c_dop_c:.2e}")
+
+    return phi_0, c_vo_c, c_dop_c
+
 if __name__ == "__main__":
+
+    dg_dop_array = np.linspace(-1.5, 0.5, 21)
+    N_vo_c_list = [1.0e27, 5.0e26]
+    N_dop_c_list = [1.68e26, 8.4e26, 1.68e27]
+    
+    phi_0_results = []
+    c_vo_c_results = []
+    c_dop_c_results = []
+
+    target_N_vo_c = 5.0e26
+    target_N_dop_c = 1.68e27
+
+    print(f"Starting parameter sweep. Total runs: {len(dg_dop_array)}")
+
+    output_dir = "bicrystal_1d" 
+    if os.path.exists(output_dir): 
+        shutil.rmtree(output_dir) 
+    os.makedirs(output_dir)
+    
+    for dg_dop in dg_dop_array:
+        output_dir = f"bicrystal_1d_{dg_dop}" 
+        if os.path.exists(output_dir): 
+            shutil.rmtree(output_dir) 
+        os.makedirs(output_dir)
+        phi_0, c_vo_c, c_dop_c = run_bicrystal_1d(
+            output_dir=output_dir,
+            delta_g_dop_eV=dg_dop, 
+            N_vo_c_phys=target_N_vo_c, 
+            N_dop_c_phys=target_N_dop_c
+        )
+        
+        phi_0_results.append(phi_0)
+        c_vo_c_results.append(c_vo_c)
+        c_dop_c_results.append(c_dop_c)
+
     run_bicrystal_1d()
