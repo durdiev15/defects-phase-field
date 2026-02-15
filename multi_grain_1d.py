@@ -561,7 +561,7 @@ def run_bicrystal_1d():
     plt.title("Electrostatic Potential Comparison")
     plt.xlabel("Distance (nm)")
     plt.ylabel("Potential (V)")
-    plt.xlim(center_nm - 10, center_nm + 10) # Zoom in to +/- 10nm around GB
+    plt.xlim(center_nm, center_nm + 20) # Zoom in to +/- 10nm around GB
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
