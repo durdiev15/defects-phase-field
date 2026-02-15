@@ -22,7 +22,7 @@ echo "Creating job directory: $JOB_DIR"
 mkdir -p "$JOB_DIR"
 cd "$JOB_DIR"
 
-cp "$PROJECT_DIR/multi_grain_v1.py" .
+cp "$PROJECT_DIR/multi_grain_1d.py" .
 cp -r "$PROJECT_DIR/solver" .
 
-python -B multi_grain_v1.py
+python -u multi_grain_1d.py

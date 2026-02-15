@@ -7,6 +7,7 @@ from solver.energy import compute_properties, compute_h_and_derivative, driving_
 from solver.concentrations import concentration_bulk_core, compute_chemical_potential, update_concentration_neumann_bc, compute_kks_mobility, update_concentration_hybrid_bc
 from solver.solve_phi import solve_poisson_2d
 from solver.plots import plot_grains, plot_fields, plot_fields_with_rho
+from solver.implicit_solver import TransportSolver
 
 import shutil 
 output_dir = "multi_order_bicrystal" 
@@ -145,7 +146,10 @@ def run_bicrystal_multiorder():
     # In KKS, we often assume g0_bulk = 0 reference, and g0_core = delta_g.
     g0_vo_b, g0_dop_b = 0.0, 0.0
 
-    steps = 5000001
+    solver_implicit = TransportSolver(Nx, Ny, dx)
+    S_stab = 1.0
+
+    steps = 50001
     for n in range(steps):
         if n == 10000:
             L_mobility = 0.0
@@ -201,7 +205,7 @@ def run_bicrystal_multiorder():
         
         eta = eta + dt * rhs
         
-        if n % 10000 == 0:
+        if n % 1000 == 0:
             # print(f"Step {n}, Max Phi: {np.max(phi):.4f}, Max Vo: {np.max(C_vo):.4e}")
             sig_dim, wid_dim, E_dens_dim, p0, p1 = compute_properties(eta, dx, omega, gamma, kappa)
             

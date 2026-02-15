@@ -1,5 +1,7 @@
 multi_order_bicrystal/*
+multi_order_bicrystal_1d/*
 solver/__py*
 results/*
 *.err
 *.out
+*.sh
