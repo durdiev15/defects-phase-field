@@ -398,20 +398,37 @@ def run_bicrystal_1d(output_dir, delta_g_dop_eV, delta_g_vo_eV=-1.5, N_vo_c_phys
     h5_path = os.path.join(output_dir, f"results_data.h5")
     h5file = h5py.File(h5_path, "w")
     
+    # --- BEFORE THE LOOP STARTS ---
+    # Setup initial tiny dt for explicit phase field stability
+    dt_base = (dx**2) / (4.0 * L_mobility * kappa)
+    dt = dt_base
+    
+    # Build initial Semi-Implicit matrices
+    LU_si_vo, piv_si_vo = build_semi_implicit_lu(Nx, dx, dt, D_vo_dim)
+    LU_si_dop, piv_si_dop = build_semi_implicit_lu(Nx, dx, dt, D_dop_dim)
+
     for n in range(steps):
 
-        # KINETIC STARVATION FIX
+        # --- THE FREEZE & BOOST ---
         if n == 25000:
             L_mobility = 0.0
-            dt = 0.45 * (dx**2) / max(D_vo_dim, D_dop_dim)
-            print(f"\n>>> Phase-field frozen. Boosting dt to {dt:.4e} to accelerate diffusion <<<\n")
+            
+            # Massive Time-Step Jump! (10,000x faster)
+            dt = dt_base * 100.0 
+            print(f"\n>>> Phase-field frozen. Semi-Implicit dt boosted to {dt:.4e} <<<\n")
+            
+            # Rebuild the LU matrices for the new massive dt
+            LU_si_vo, piv_si_vo = build_semi_implicit_lu(Nx, dx, dt, D_vo_dim)
+            LU_si_dop, piv_si_dop = build_semi_implicit_lu(Nx, dx, dt, D_dop_dim)
 
         if n == 300000:
             dt = dt * 5
-            print(f"\n>>> Phase-field frozen. Boosting dt to {dt:.4e} to accelerate diffusion <<<\n")
-        
+            LU_si_vo, piv_si_vo = build_semi_implicit_lu(Nx, dx, dt, D_vo_dim)
+            LU_si_dop, piv_si_dop = build_semi_implicit_lu(Nx, dx, dt, D_dop_dim)
+            print(f"\n>>> Phase-field frozen. Semi-Implicit dt boosted to {dt:.4e} <<<\n")
+            
+        # 1. Thermodynamics & Poisson
         h, dh_deta = compute_h_and_derivative_1d(eta)
-        
         C_vo_b, C_vo_c = concentration_bulk_core(delta_g_vo, C_vo, N_vo_b, N_vo_c, h)
         C_dop_b, C_dop_c = concentration_bulk_core(delta_g_dop, C_dop, N_dop_b, N_dop_c, h)
         
@@ -423,9 +440,11 @@ def run_bicrystal_1d(output_dir, delta_g_dop_eV, delta_g_vo_eV=-1.5, N_vo_c_phys
         M_vo = compute_kks_mobility(C_vo_b, C_vo_c, h, N_vo_b, N_vo_c, D_vo_dim)
         M_dop = compute_kks_mobility(C_dop_b, C_dop_c, h, N_dop_b, N_dop_c, D_dop_dim)
         
-        C_vo = update_concentration_1d(C_vo, mu_vo, M_vo, dt, dx)
-        C_dop = update_concentration_1d(C_dop, mu_dop, M_dop, dt, dx)
+        # 2. Semi-Implicit Concentration Update
+        C_vo = update_concentration_semi_implicit(C_vo, mu_vo, M_vo, dt, dx, LU_si_vo, piv_si_vo, D_vo_dim)
+        C_dop = update_concentration_semi_implicit(C_dop, mu_dop, M_dop, dt, dx, LU_si_dop, piv_si_dop, D_dop_dim)
         
+        # 3. Explicit Phase-Field Update (Only runs if L_mobility > 0)
         if L_mobility > 0.0:
             omega_diff_vo = driving_force_concentrations(C_vo_b, C_vo_c, N_vo_b, N_vo_c)
             omega_diff_dop = driving_force_concentrations(C_dop_b, C_dop_c, N_dop_b, N_dop_c)
@@ -457,7 +476,7 @@ def run_bicrystal_1d(output_dir, delta_g_dop_eV, delta_g_vo_eV=-1.5, N_vo_c_phys
             # eta1_np = eta1.cpu().numpy()
 
             print(f"\nStep {n}: \nMax Phi={np.max(phi_phys):.4f} V, Max Vo={np.max(C_vo_phys):.4e} 1/m3, Max Dop={np.max(C_dop_phys):.4e} 1/m3")# | Sig={sig_phys_val:.4f} J/m^2 | Width={wid_phys_val*1e9:.4f} nm")
-            print(f"Min Phi={np.min(phi_phys):.4f} V, Min Vo={np.min(C_vo_phys):.4e} 1/m3, Min Dop={np.min(C_dop_phys):.4e} 1/m3")
+            print(f"        Min Phi={np.min(phi_phys):.4f} V, Min Vo={np.min(C_vo_phys):.4e} 1/m3, Min Dop={np.min(C_dop_phys):.4e} 1/m3")
 
 
             # if n > 20000:
@@ -516,9 +535,9 @@ def run_bicrystal_1d(output_dir, delta_g_dop_eV, delta_g_vo_eV=-1.5, N_vo_c_phys
     return phi_0, c_vo_c, c_dop_c
 
 if __name__ == "__main__":
-    dg_dop_array = [-1.5] #np.linspace(-1.5, 0.5, 21)
-    N_vo_c_list = [1.0e27]
-    N_dop_c_list = [1.68e27]
+    dg_dop_array = np.linspace(-1.5, 0.5, 11)
+    N_vo_c_list = [1.0e27, 5.0e26]
+    N_dop_c_list = [1.68e26, 8.4e26, 1.68e27]
 
     print(f"Starting parameter sweep. Total runs: {len(dg_dop_array)*len(N_vo_c_list)*len(N_dop_c_list)}")
 
@@ -528,7 +547,7 @@ if __name__ == "__main__":
             print(f"\n--- Running Case {case_idx}/6: N_vo_c={N_vo_c:.2e}, N_dop_c={N_dop_c:.2e} ---")
             for dg_dop in dg_dop_array:
                 print(f"        with dg_dop={dg_dop:.1f} eV:\n")
-                output_dir = f"bicrystal_1d_N_vo_c={N_vo_c:.2e}_N_dop_c={N_dop_c:.2e}_dg_dop={dg_dop:.1f}_eV" 
+                output_dir = f"bicrystal_1d_eq_N_vo_c={N_vo_c:.2e}_N_dop_c={N_dop_c:.2e}_dg_dop={dg_dop:.1f}_eV" 
                 if os.path.exists(output_dir): 
                     shutil.rmtree(output_dir) 
                 os.makedirs(output_dir)

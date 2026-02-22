@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=DefectSim
-#SBATCH -A special00007
+#SBATCH -A project02570
 #SBATCH --output=%x_%j.out     
 #SBATCH --error=%x_%j.err
 #SBATCH --nodes=1
@@ -22,7 +22,7 @@ echo "Creating job directory: $JOB_DIR"
 mkdir -p "$JOB_DIR"
 cd "$JOB_DIR"
 
-cp "$PROJECT_DIR/multi_grain_1d.py" .
+cp "$PROJECT_DIR/multi_grain_1d_equilibrium.py" .
 cp -r "$PROJECT_DIR/solver" .
 
 python -u multi_grain_1d.py
