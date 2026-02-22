@@ -5,3 +5,5 @@ results/*
 *.err
 *.out
 *.sh
+bicrystal*/
+*.png
